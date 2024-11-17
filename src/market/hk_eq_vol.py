@@ -1,16 +1,12 @@
-import logging
-
-from common.models.data import DataPointType, OptionDataFlag, SessionType
+from common.models.market_data import MarketDataType, OptionDataFlag, SessionType
 from volatility.instruments.option import CallOption, PutOption
 from volatility.models.listed_options_construct import ListedOptionsConstruct, ModelStrikeSlice, ModelStrikeLine
 
 from data_api import hkex_client
 from data_api import hkex_server
 
-logger = logging.Logger(__name__)
-
 def get_vol_model(code: str, session_type: SessionType = None):
-    price_type, weight_type = DataPointType.MID, DataPointType.SPREAD
+    price_type, weight_type = MarketDataType.MID, MarketDataType.SPREAD
     futures_list = hkex_client.get_futures_contracts(code, session_type=session_type)
     update_dtm, quotes = hkex_server.load_futures_quotes(code, session_type=session_type)
     value_date = update_dtm.date()
@@ -51,6 +47,5 @@ def construct(instrument_ids: list[str]):
 def get_vol_surface_data(code: str, model_type: str):
     vol_model = get_vol_model(code)
     vol_surface = vol_model.build(model_type)
-    logger.warning(vol_surface)
     # err_list = vol_model.get_calibration_errors(vol_surface)
     return vol_model.get_vols_graph(vol_surface)

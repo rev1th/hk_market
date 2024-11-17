@@ -24,7 +24,7 @@ class Interpolator3D:
         if type in ('Default', 'Spline'):
             return Spline3D
         else:
-            raise Exception(f"{type} not supported yet")
+            raise NotImplementedError(f"{type} not supported yet")
 
     def get_value(self, _: float, __: float):
         raise RuntimeError("Abstract function: get_value")

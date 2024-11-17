@@ -14,6 +14,7 @@ logger = logging.Logger(__name__)
 
 DAYCOUNT = daycount.DayCount.ACT365
 RATES_CURVE = {}
+MIN_POINTS = 5
 
 def load_rates_curve(value_date: dtm.date):
     tenors_rates = hkab_server.get_rates(value_date)
@@ -39,6 +40,9 @@ def get_beta_matrix(stock_prices: dict[str, pd.Series], index_prices: dict[str, 
         for sn, stk_r in stock_returns.items():
             r_df = pd.concat([idx_r, stk_r], axis=1)
             r_v = list(zip(*r_df.dropna().values))
+            if len(r_v) != 2 or len(r_v[0]) < MIN_POINTS:
+                logger.error(f'{sn} data points are not valid')
+                continue
             x_in = sm_api.add_constant(r_v[0], prepend=False)
             res = sm_api.OLS(r_v[1], x_in).fit()
             logger.info(f"{idx_n}, {sn}, {res.params}")
@@ -50,6 +54,9 @@ def get_autocorrelation(stock_prices: dict[str, pd.Series]) -> dict[str, tuple[i
     res = {}
     for sn, stk_r in stock_returns.items():
         stk_r_v = stk_r.dropna().values
+        if len(stk_r_v) < MIN_POINTS:
+            logger.info(f'{sn} data points are not valid')
+            continue
         pac_v = ts_api.pacf(stk_r_v)
         pac_i = np.argmax([abs(x) for x in pac_v[1:]]) + 1
         res[sn] = (pac_i, pac_v[pac_i])

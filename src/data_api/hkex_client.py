@@ -1,8 +1,8 @@
 import datetime as dtm
 
 from common import sql
-from common.models.data import SessionType
 from common.models.data_series import DataSeries
+from common.models.market_data import SessionType
 
 from data_api.db_config import META_DB, PRICES_DB
 from data_api.hkex_config import *
@@ -38,7 +38,7 @@ def get_indices(load_data: bool = False) -> list[EquityIndex]:
         instruments.append(index)
     return instruments
 
-def get_derivatives(load_data: bool = False) -> list[EquityIndex]:
+def get_index_derivatives(load_data: bool = False) -> list[EquityIndex]:
     select_query = f"SELECT t1.ric, t1.name, t2.future_id FROM {INDEX_TABLE} AS t1 "\
     f"LEFT OUTER JOIN {FUTURE_TABLE} AS t2 ON t1.index_id=t2.underlier_id ORDER BY t2.lot_size DESC"
     select_res = sql.fetch(select_query, META_DB)
@@ -48,6 +48,18 @@ def get_derivatives(load_data: bool = False) -> list[EquityIndex]:
         if load_data:
             index._data_series = get_history(index.data_id)
         instruments.append(index)
+    return instruments
+
+def get_stock_derivatives(load_data: bool = False) -> list[Stock]:
+    select_query = f"SELECT t1.ric, t1.name, t2.future_id FROM {EQUITY_TABLE} AS t1 "\
+    f"LEFT OUTER JOIN {FUTURE_TABLE} AS t2 ON t1.stock_id=t2.underlier_id ORDER BY t2.lot_size DESC"
+    select_res = sql.fetch(select_query, META_DB)
+    instruments = []
+    for row in select_res:
+        stock = Stock(data_id=row[0], derivatives_id=row[2], name=row[1])
+        if load_data:
+            stock._data_series = get_history(stock.data_id)
+        instruments.append(stock)
     return instruments
 
 def get_underlier(id: str):
@@ -88,8 +100,6 @@ def get_last_date(ric: str):
     return dtm.datetime.strptime(last_date, sql.DATE_FORMAT).date()
 
 def get_intraday_data(ric: str, **kwargs) -> dict[dtm.datetime, float]:
-    if not hkex_server.is_valid_token():
-        hkex_server.set_token()
     chart_data = hkex_server.get_chart_data(ric, **kwargs)
     return {row[0]: row[4] for row in chart_data}
 
@@ -102,5 +112,5 @@ if __name__ == '__main__':
     #     hkex_server.load_stock_details(s)
     for s in get_stocks() + get_indices():
         from_date = get_last_date(s.data_id) + dtm.timedelta(days=1)
-        hkex_server.load_history_daily(s.data_id, '1m', from_date)
+        hkex_server.update_history_daily(s.data_id, '1m', from_date)
     pass

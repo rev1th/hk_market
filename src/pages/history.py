@@ -19,6 +19,7 @@ layout = html.Div([
             id='val-date-picker',
             clearable=True,
         ),
+        dcc.Input(id='tenors-input', placeholder='Tenors', type='text', debounce=True),
         html.Button('Load Analytics', id='load_analytics'),
         dcc.Loading(
             id='analytics-table-status',
@@ -35,19 +36,21 @@ def get_tuple_format(fmt: str):
     Output(component_id='analytics-table', component_property='children'),
     Output(component_id='analytics-table-status', component_property='children'),
     State(component_id='val-date-picker', component_property='date'),
+    State(component_id='tenors-input', component_property='value'),
     Input(component_id='load_analytics', component_property='n_clicks'),
 )
-def load_analytics(date_str: str, *_):
+def load_analytics(date_str: str, tenors_str: str, *_):
     tabvals = []
     date_select = dtm.date.fromisoformat(date_str) if date_str else None
-    table_dict = main.get_analytics_table(date_select)
+    tenors = [t.strip() for t in tenors_str.split(',')] if tenors_str else None
+    table_dict = main.get_analytics_table(date_select, tenors)
     for label, table in table_dict.items():
         values_df = pd.DataFrame(table).reset_index(names=['Name'])
         values_cols = [dict(field=col) for col in values_df.columns]
         for col in values_cols[1:]:
             if label == 'Lag':
                 col.update(dict(valueFormatter=get_tuple_format(',.3%')))
-            else:
+            elif col['field'] != 'Price':
                 col.update(dict(valueFormatter=style.get_grid_number_format(',.3%')))
         tabvals.append(dcc.Tab([
             dag.AgGrid(

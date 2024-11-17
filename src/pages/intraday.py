@@ -55,27 +55,31 @@ layout = html.Div([
 )
 def load_options(model_type: str, *_):
     try:
-        v_tabvals = []
+        tabvals = []
         for vsm in main.get_option_models():
             try:
                 vs = vsm.build(model_type)
-                fig = vol_plotter.get_vol_surface_figure(*vsm.get_vols_graph(vs))
+                if not vs:
+                    continue
+                vs_fig = vol_plotter.get_surface_figure(*vsm.get_vols_graph(vs))
+                gr_fig = vol_plotter.get_surface_figure(*vsm.get_greeks_graph(vs), title='Greeks', mesh_ids=[])
                 rows, colnames = vsm.get_calibration_summary(vs)
             except Exception as ex:
-                logger.error(f'Exception in Surface: {ex}')
+                logger.error(f'Exception in Surface {vsm.name}: {ex}')
                 continue
             columns = [dict(field=col) for col in colnames]
             records = [dict(zip(colnames, row)) for row in rows]
-            v_tabvals.append(dcc.Tab(children=[
-                dcc.Graph(figure=fig, style=GRAPH_STYLE),
+            tabvals.append(dcc.Tab(children=[
+                dcc.Graph(figure=vs_fig, style=GRAPH_STYLE),
+                dcc.Graph(figure=gr_fig, style=GRAPH_STYLE),
                 dag.AgGrid(
                     rowData=records, columnDefs=columns,
                     **GRID_STYLE
                 ),
             ], label=vsm.name))
-        return dcc.Tabs(children=v_tabvals), None
+        return dcc.Tabs(children=tabvals), None
     except Exception as ex:
-        logger.error(f'Exception in Models: {ex}')
+        logger.critical(f'Exception in Models: {ex}')
         return None, None
 
 @callback(
@@ -85,13 +89,13 @@ def load_options(model_type: str, *_):
 )
 def load_futures(*_):
     try:
-        v_tabvals = []
+        tabvals = []
         for label, graph_data, kwargs in main.get_futures_data():
             fig = plotter.get_figure(*graph_data, **kwargs)
-            v_tabvals.append(dcc.Tab(children=[
+            tabvals.append(dcc.Tab(children=[
                 dcc.Graph(figure=fig, style=GRAPH_STYLE),
             ], label=label))
-        return dcc.Tabs(children=v_tabvals), None
+        return dcc.Tabs(children=tabvals), None
     except Exception as ex:
-        logger.error(f'Exception in Models: {ex}')
+        logger.critical(f'Exception in Models: {ex}')
         return None, None

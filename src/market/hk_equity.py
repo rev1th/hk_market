@@ -2,7 +2,7 @@ import pandas as pd
 import datetime as dtm
 import logging
 
-from common.models.data import DataPointType, SessionType
+from common.models.market_data import MarketDataType, SessionType
 from data_api import hkex_client
 from lib import analytics
 from instruments.stock import Stock, BaseInstrument
@@ -16,7 +16,12 @@ def get_data_slice(instrument: BaseInstrument, from_date: dtm.date, to_date: dtm
     return pd.Series({k: instrument.data[k] for k in instrument.data.irange(from_date, to_date)})
 
 def get_return(instrument: BaseInstrument, from_date: dtm.date, to_date: dtm.date = None):
-    from_price = instrument.data.get_latest_value(from_date)
+    try:
+        from_price = instrument.data.get_latest_value(from_date)
+    except IndexError:
+        # returns calculation does not support partial period
+        logger.info(f'{instrument.name} prices not available from {from_date}')
+        return None
     if to_date:
         to_price = instrument.data.get_latest_value(to_date)
     else:
@@ -51,12 +56,12 @@ def get_stock_intraday_data(stocks: list[Stock], benchmarks: list[EquityIndex],
     stocks_data = {}
     for stk_i in stocks:
         price_series = pd.Series(hkex_client.get_intraday_data(stk_i.data_id))
-        price_factor = BASE_PRICE / stk_i[DataPointType.PREV_CLOSE]
+        price_factor = BASE_PRICE / stk_i[MarketDataType.PREV_CLOSE]
         prices_norm = {k: v * price_factor for k, v in price_series.items()}
         stocks_data[stk_i.name] = {'Market': pd.Series(prices_norm)}
     for idx_i in benchmarks:
         price_series = pd.Series(hkex_client.get_intraday_data(idx_i.data_id))
-        index_close = idx_i[DataPointType.PREV_CLOSE]
+        index_close = idx_i[MarketDataType.PREV_CLOSE]
         for stk_n, (b0, b1) in beta_matrix[idx_i.name].items():
             prices_norm = {k: (1 + (v/index_close-1) * b0 + b1) * BASE_PRICE for k, v in price_series.items()}
             stocks_data[stk_n][idx_i.name] = pd.Series(prices_norm)
